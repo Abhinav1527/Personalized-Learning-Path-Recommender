@@ -252,11 +252,6 @@ The objective is to recommend the **Top 10 most relevant learning paths** for ea
 - Personalized ranking
 - Learning history integration
 
----
-
-## 📜 License
-
-This project is developed for educational and research purposes.
 
 ---
 
