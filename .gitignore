@@ -1,0 +1,31 @@
+# Python & Virtual Environments
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.ipynb_checkpoints/
+
+# Environment variables & secrets (CRITICAL: Do NOT commit)
+.env
+.env.local
+*.env
+
+# Large model artifacts (exceeds GitHub 100MB limit, generate with `python src/train.py`)
+models/*.pkl
+models/*.bin
+models/*.onnx
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS specific
+.DS_Store
+Thumbs.db
