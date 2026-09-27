@@ -227,8 +227,19 @@ Open two terminal windows:
   npm run dev
   ```
 
+### Method 3: Run Live on Replit ⚡
+
+1. Go to [Replit](https://replit.com) and click **"+ Create Repl"** → **"Import from GitHub"**.
+2. Paste this repository URL and import.
+3. In Replit's **Secrets (Tools → Secrets)**, optionally add your AI keys:
+   * `GEMINI_API_KEY`: *(Your Google AI Studio Key)*
+   * `GROQ_API_KEY`: *(Optional)*
+   * `OPENROUTER_API_KEY`: *(Optional)*
+4. Click the green **"▶ Run"** button!
+   * Replit automatically builds the frontend and serves the full application live on your public `*.replit.dev` or `*.replit.app` URL with an interactive WebView.
+
 Access the application in your browser:
-* **Frontend Web App**: [http://localhost:5173](http://localhost:5173)
+* **Frontend Web App**: [http://localhost:5173](http://localhost:5173) (Local) or your Replit Webview URL (Live)
 * **Backend API Docs (Swagger UI)**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 * **API Health Check**: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
 

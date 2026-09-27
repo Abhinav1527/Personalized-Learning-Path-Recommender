@@ -26,9 +26,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.staticfiles import StaticFiles
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
@@ -40,7 +42,6 @@ from src.ai_service import (
     process_chat_request,
     get_candidate_courses,
 )
-
 
 import json
 
@@ -126,11 +127,20 @@ _bundle: dict = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load model once on startup."""
+    """Load model once on startup if available."""
     global _bundle
-    print("[api] Loading model bundle...")
-    _bundle = load_model(MODEL_PATH)
-    print("[api] Model ready.")
+    if os.path.exists(MODEL_PATH):
+        print(f"[api] Loading model bundle from '{MODEL_PATH}'...")
+        try:
+            _bundle = load_model(MODEL_PATH)
+            print("[api] Model ready.")
+        except Exception as e:
+            print(f"[api] Error loading model: {e}")
+            _bundle = {}
+    else:
+        print(f"[api] Notice: Model bundle '{MODEL_PATH}' not found.")
+        print("[api] Running in fallback mode. Run 'python src/train.py' to generate model.")
+        _bundle = {}
     yield
     _bundle.clear()
 
@@ -145,10 +155,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+api_router = APIRouter()
 
 
 # ─────────────────────────────── Schemas ──────────────────────────────────
@@ -216,7 +229,7 @@ class AIChatResponse(BaseModel):
 
 # ─────────────────────────────── Routes ───────────────────────────────────
 
-@app.post("/auth/register", status_code=status.HTTP_201_CREATED)
+@api_router.post("/auth/register", status_code=status.HTTP_201_CREATED)
 def register(req: RegisterRequest):
     if not req.username.strip() or not req.password:
         raise HTTPException(status_code=422, detail="Username and password are required")
@@ -227,7 +240,7 @@ def register(req: RegisterRequest):
     return {"message": "Account created. You can now log in."}
 
 
-@app.post("/auth/login", response_model=TokenResponse)
+@api_router.post("/auth/login", response_model=TokenResponse)
 def login(form: Annotated[OAuth2PasswordRequestForm, Depends()]):
     hashed = _users.get(form.username)
     if not hashed or not _verify(form.password, hashed):
@@ -239,12 +252,12 @@ def login(form: Annotated[OAuth2PasswordRequestForm, Depends()]):
     return TokenResponse(access_token=_create_token(form.username))
 
 
-@app.get("/health")
+@api_router.get("/health")
 def health():
     return {"status": "ok", "model_loaded": bool(_bundle)}
 
 
-@app.get("/ai/providers")
+@api_router.get("/ai/providers")
 def get_ai_providers():
     """Return available AI model providers and their current status."""
     providers_info = []
@@ -257,7 +270,7 @@ def get_ai_providers():
     return {"providers": providers_info}
 
 
-@app.post("/ai/chat", response_model=AIChatResponse)
+@api_router.post("/ai/chat", response_model=AIChatResponse)
 async def ai_chat(req: AIChatRequest, _user: Annotated[str, Depends(_get_current_user)]):
     """
     Conversational AI Recommender endpoint powered by Gemini, Groq, or OpenRouter free models.
@@ -275,7 +288,7 @@ async def ai_chat(req: AIChatRequest, _user: Annotated[str, Depends(_get_current
     return AIChatResponse(**result)
 
 
-@app.post("/recommend", response_model=RecommendResponse)
+@api_router.post("/recommend", response_model=RecommendResponse)
 def recommend(req: RecommendRequest, _user: Annotated[str, Depends(_get_current_user)]):
     if not _bundle:
         raise HTTPException(status_code=503, detail="Model not loaded")
@@ -297,3 +310,47 @@ def recommend(req: RecommendRequest, _user: Annotated[str, Depends(_get_current_
             for r in recs
         ],
     )
+
+
+# Mount API router both at root and with /api prefix
+app.include_router(api_router)
+app.include_router(api_router, prefix="/api")
+
+
+# ─────────────────────────── Static & SPA Serving ─────────────────────────
+
+DIST_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+ASSETS_DIR = os.path.join(DIST_DIR, "assets")
+
+if os.path.exists(ASSETS_DIR):
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
+
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    # Do not capture API routes or documentation
+    if full_path.startswith("api/") or full_path in ("docs", "openapi.json", "redoc", "health"):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    # If specific static file exists in dist (e.g. favicon, vite.svg)
+    file_path = os.path.join(DIST_DIR, full_path)
+    if full_path and os.path.isfile(file_path):
+        return FileResponse(file_path)
+
+    # Return SPA index.html for all client-side routes
+    index_path = os.path.join(DIST_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+
+    return {
+        "status": "ok",
+        "message": "Personalized Learning Path Recommender API is running. Build frontend with 'npm run build' inside frontend/ to view the UI.",
+        "docs": "/docs",
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("src.api:app", host="0.0.0.0", port=port, reload=False)
+
