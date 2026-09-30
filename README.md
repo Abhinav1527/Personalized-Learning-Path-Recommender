@@ -2,7 +2,6 @@
 
 An AI-powered recommendation system that suggests the **Top 10 personalized learning paths** based on a user's course review. The project uses Natural Language Processing (NLP) and semantic similarity techniques to recommend the most relevant learning paths from a large collection of course reviews.
 
-> Developed as part of the HackerEarth AI/ML Challenge.
 
 ---
 
